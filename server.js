@@ -41,6 +41,7 @@ async function checkDomain(domain) {
 
 async function notifyOwner(order) {
   const subject = `Nová objednávka domény: ${order.domains.join(', ')}`;
+  const prices = { cz: 299, com: 349, eu: 249, sk: 299, net: 399, org: 399, io: 1299, ai: 2199, online: 699, shop: 899 };
   const text = [
     'Na domeny.praut.cz vznikla nová objednávka.',
     '',
@@ -73,16 +74,28 @@ async function notifyOwner(order) {
 
   if (process.env.ORDER_WEBHOOK_URL) {
     const isDiscord = /(?:discord(?:app)?\.com|discordapp\.net)\/api\/webhooks\//i.test(process.env.ORDER_WEBHOOK_URL);
+    const domain = order.domains[0];
+    const tld = domain.split('.').pop();
+    const price = prices[tld];
+    const mentionIds = String(process.env.DISCORD_MENTION_IDS || '').split(',').map(id => id.trim()).filter(id => /^\d{15,22}$/.test(id));
+    const mentions = mentionIds.length ? mentionIds.map(id => `<@${id}>`).join(' ') : '@emperor_kundis @tartistbees @stpzz';
+    const registryUrl = tld === 'cz' ? `https://www.nic.cz/whois/?d=${encodeURIComponent(domain)}` : `https://lookup.icann.org/en/lookup?name=${encodeURIComponent(domain)}`;
     const webhookBody = isDiscord ? {
       username: 'PRAUT Domény',
-      content: '🛒 **Nová objednávka domény**',
+      content: `🛒 **Nová objednávka domény**\n${mentions}`,
+      allowed_mentions: { parse: [], users: mentionIds },
       embeds: [{
-        title: order.domains.join(', '),
+        title: `🌐 ${order.domains.join(', ')}`,
+        url: registryUrl,
+        description: 'Klient odeslal zájem o registraci. Před nákupem znovu ověřte dostupnost a následně klientovi potvrďte přijetí.',
         color: 0x283487,
         fields: [
           { name: 'Zákazník', value: order.customer.name || 'Neuvedeno', inline: true },
           { name: 'E-mail', value: order.customer.email, inline: true },
-          { name: 'Reference', value: order.reference, inline: false }
+          { name: 'Prodejní cena', value: price ? `**${price} Kč bez DPH**\n${(price * 1.21).toFixed(2).replace('.', ',')} Kč s DPH / rok` : 'Ověřit podle TLD', inline: true },
+          { name: 'Reference', value: `\`${order.reference}\``, inline: true },
+          { name: 'Rychlé odkazy', value: `[Ověřit v registru](${registryUrl}) · [Koupit u VEDOS](https://vedos.cz/domeny/)`, inline: false },
+          { name: 'Doporučený postup', value: '1. Ověřit dostupnost\n2. Kontaktovat klienta\n3. Nakoupit až po potvrzení/platbě\n4. Zapsat doménu na údaje klienta', inline: false }
         ],
         timestamp: order.createdAt,
         footer: { text: 'domeny.praut.cz' }
