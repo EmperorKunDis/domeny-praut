@@ -1,4 +1,4 @@
-const prices = { cz: 199, com: 349, eu: 249, sk: 299, net: 399, org: 399, io: 1299, ai: 2199, online: 699, shop: 899 };
+const prices = { cz: 299, com: 349, eu: 249, sk: 299, net: 399, org: 399, io: 1299, ai: 2199, online: 699, shop: 899 };
 const form = document.querySelector('#search-form');
 const input = document.querySelector('#domain-input');
 const results = document.querySelector('#results');
