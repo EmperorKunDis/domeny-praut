@@ -8,10 +8,10 @@ const DATA_DIR = process.env.VERCEL ? '/tmp/praut-domeny' : path.join(__dirname,
 const ORDERS_FILE = path.join(DATA_DIR, 'orders.jsonl');
 const ALLOWED_TLDS = new Set(['cz', 'com', 'eu', 'sk', 'net', 'org', 'io', 'ai', 'online', 'shop']);
 const PRICES = { cz: 299, com: 349, eu: 249, sk: 299, net: 399, org: 399, io: 1299, ai: 2199, online: 699, shop: 899 };
-const HOSTING_PRICE = 1490;
+const HOSTING_PRICE = 1500;
 
 function calculateTotals(domains, hosting) {
-  const subtotal = domains.reduce((sum, domain) => sum + (PRICES[domain.split('.').pop()] || 0), 0) + (hosting ? HOSTING_PRICE : 0);
+  const subtotal = domains.reduce((sum, domain) => sum + (PRICES[domain.split('.').pop()] || 0), 0) + (hosting ? HOSTING_PRICE * domains.length : 0);
   const vat = Math.round(subtotal * 21) / 100;
   return { subtotal, vat, total: subtotal + vat, currency: 'CZK' };
 }
@@ -100,7 +100,7 @@ async function notifyOwner(order) {
         fields: [
           { name: 'Zákazník', value: order.customer.name || 'Neuvedeno', inline: true },
           { name: 'E-mail', value: order.customer.email, inline: true },
-          { name: 'Položky', value: `${order.domains.map(name => `• ${name} — ${PRICES[name.split('.').pop()] || '?'} Kč`).join('\n')}${order.hosting ? `\n• Spravovaný hosting — ${HOSTING_PRICE} Kč` : ''}`, inline: false },
+          { name: 'Položky', value: `${order.domains.map(name => `• ${name} — ${PRICES[name.split('.').pop()] || '?'} Kč`).join('\n')}${order.hosting ? `\n• Spravovaný hosting ${order.domains.length}× — ${HOSTING_PRICE * order.domains.length} Kč` : ''}`, inline: false },
           { name: 'Celkem', value: `**${order.totals.subtotal.toFixed(2).replace('.', ',')} Kč bez DPH**\n${order.totals.total.toFixed(2).replace('.', ',')} Kč s DPH`, inline: true },
           { name: 'Reference', value: `\`${order.reference}\``, inline: true },
           { name: 'Rychlé odkazy', value: `[Ověřit v registru](${registryUrl}) · [Koupit u VEDOS](https://vedos.cz/domeny/)`, inline: false },

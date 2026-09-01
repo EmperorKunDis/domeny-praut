@@ -5,7 +5,7 @@ const results = document.querySelector('#results');
 const cartItems = document.querySelector('#cart-items');
 const cartEmpty = document.querySelector('#cart-empty');
 const cart = new Map();
-const HOSTING_PRICE = 1490;
+const HOSTING_PRICE = 1500;
 const isPagesPreview = location.hostname.endsWith('github.io');
 
 if (isPagesPreview) document.querySelector('#preview-notice')?.classList.add('visible');
@@ -63,7 +63,7 @@ function renderCart() {
 
 function money(value) { return new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: 'CZK', minimumFractionDigits: 2 }).format(value); }
 function renderTotal() {
-  const subtotal = [...cart.values()].reduce((sum, price) => sum + price, 0) + (document.querySelector('#hosting').checked ? HOSTING_PRICE : 0);
+  const subtotal = [...cart.values()].reduce((sum, price) => sum + price, 0) + (document.querySelector('#hosting').checked ? HOSTING_PRICE * cart.size : 0);
   document.querySelector('#subtotal').textContent = money(subtotal);
   document.querySelector('#vat').textContent = money(subtotal * .21);
   document.querySelector('#grand-total').textContent = money(subtotal * 1.21);

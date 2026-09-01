@@ -8,6 +8,6 @@ test('rejects malformed domain names', () => {
   assert.equal(validDomain('-spatne.cz'), false);
   assert.equal(validDomain('bez-koncovky'), false);
 });
-test('sums multiple domains, hosting and VAT', () => {
-  assert.deepEqual(calculateTotals(['firma.cz', 'firma.com'], true), { subtotal: 2138, vat: 448.98, total: 2586.98, currency: 'CZK' });
+test('charges hosting separately for every domain and adds VAT', () => {
+  assert.deepEqual(calculateTotals(['firma.cz', 'firma.com'], true), { subtotal: 3648, vat: 766.08, total: 4414.08, currency: 'CZK' });
 });
