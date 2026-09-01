@@ -4,7 +4,7 @@ const path = require('node:path');
 
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, 'public');
-const DATA_DIR = path.join(__dirname, 'data');
+const DATA_DIR = process.env.VERCEL ? '/tmp/praut-domeny' : path.join(__dirname, 'data');
 const ORDERS_FILE = path.join(DATA_DIR, 'orders.jsonl');
 const ALLOWED_TLDS = new Set(['cz', 'com', 'eu', 'sk', 'net', 'org', 'io', 'ai', 'online', 'shop']);
 
@@ -53,20 +53,22 @@ async function notifyOwner(order) {
   const deliveries = [];
 
   if (process.env.RESEND_API_KEY) {
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        from: process.env.NOTIFY_FROM || 'PRAUT Domény <domeny@praut.cz>',
-        to: [process.env.NOTIFY_EMAIL || 'objednavky@praut.cz'],
-        reply_to: order.customer.email,
-        subject,
-        text
-      }),
-      signal: AbortSignal.timeout(8000)
-    });
-    if (!response.ok) throw new Error(`E-mailová služba odpověděla ${response.status}`);
-    deliveries.push('email');
+    try {
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: process.env.NOTIFY_FROM || 'PRAUT Domény <domeny@praut.cz>',
+          to: [process.env.NOTIFY_EMAIL || 'objednavky@praut.cz'],
+          reply_to: order.customer.email,
+          subject,
+          text
+        }),
+        signal: AbortSignal.timeout(8000)
+      });
+      if (!response.ok) throw new Error(`E-mailová služba odpověděla ${response.status}: ${await response.text()}`);
+      deliveries.push('email');
+    } catch (error) { console.error(`[${order.reference}] E-mail selhal:`, error.message); }
   }
 
   if (process.env.ORDER_WEBHOOK_URL) {
@@ -86,14 +88,16 @@ async function notifyOwner(order) {
         footer: { text: 'domeny.praut.cz' }
       }]
     } : { text: `🛒 ${subject}\n${text}`, order };
-    const response = await fetch(process.env.ORDER_WEBHOOK_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(webhookBody),
-      signal: AbortSignal.timeout(8000)
-    });
-    if (!response.ok) throw new Error(`Webhook odpověděl ${response.status}`);
-    deliveries.push('webhook');
+    try {
+      const response = await fetch(process.env.ORDER_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(webhookBody),
+        signal: AbortSignal.timeout(8000)
+      });
+      if (!response.ok) throw new Error(`Webhook odpověděl ${response.status}: ${await response.text()}`);
+      deliveries.push('webhook');
+    } catch (error) { console.error(`[${order.reference}] Webhook selhal:`, error.message); }
   }
   return deliveries;
 }
@@ -102,7 +106,7 @@ function contentType(file) {
   return ({ '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml' })[path.extname(file)] || 'application/octet-stream';
 }
 
-const server = http.createServer(async (req, res) => {
+async function handler(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   if (url.pathname === '/api/availability' && req.method === 'GET') {
     const domain = normalizeDomain(url.searchParams.get('domain'));
@@ -148,7 +152,9 @@ const server = http.createServer(async (req, res) => {
   const resolved = path.resolve(PUBLIC_DIR, relative);
   res.writeHead(200, { 'Content-Type': contentType(resolved), 'Cache-Control': resolved.endsWith('.html') ? 'no-cache' : 'public, max-age=86400' });
   fs.createReadStream(resolved).pipe(res);
-});
+}
+
+const server = http.createServer(handler);
 
 if (require.main === module) server.listen(PORT, () => console.log(`PRAUT Domény: http://localhost:${PORT}`));
-module.exports = { normalizeDomain, validDomain, checkDomain, notifyOwner, server };
+module.exports = { normalizeDomain, validDomain, checkDomain, notifyOwner, handler, server };
