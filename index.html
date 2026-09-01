@@ -65,12 +65,15 @@
     </section>
 
     <section id="objednavka" class="checkout section">
-      <div><span class="kicker">OBJEDNÁVKA</span><h2>Připravený košík</h2><p id="cart-empty">Nejdříve vyhledejte a vyberte volnou doménu.</p><div id="cart-items"></div></div>
+      <div><span class="kicker">OBJEDNÁVKA</span><h2>Připravený košík</h2><p id="cart-empty">Nejdříve vyhledejte a vyberte volnou doménu.</p><div id="cart-items"></div>
+        <label class="hosting-option"><input id="hosting" type="checkbox"><span><strong>Spravovaný hosting na 1 rok</strong><small>Pro základní statický web · SSL, nasazení, monitoring a česká podpora</small></span><b>1 490 Kč</b></label>
+        <div class="order-total" id="order-total"><div><span>Mezisoučet</span><strong id="subtotal">0 Kč</strong></div><div><span>DPH 21 %</span><strong id="vat">0 Kč</strong></div><div class="grand-total"><span>Celkem k úhradě</span><strong id="grand-total">0 Kč</strong></div></div>
+      </div>
       <form id="order-form">
         <label>E-mail pro potvrzení<input name="email" type="email" placeholder="vy@firma.cz" required></label>
         <label>Jméno nebo firma<input name="name" placeholder="Vaše firma s.r.o."></label>
         <label class="consent"><input name="consent" type="checkbox" required> Souhlasím s pravidly registrace a zpracováním údajů pro objednávku.</label>
-        <button class="primary" type="submit">Koupit domény →</button>
+        <button class="primary" type="submit">Vytvořit výzvu k platbě →</button>
         <p id="order-status" aria-live="polite"></p>
       </form>
     </section>

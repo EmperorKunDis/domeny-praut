@@ -5,6 +5,7 @@ const results = document.querySelector('#results');
 const cartItems = document.querySelector('#cart-items');
 const cartEmpty = document.querySelector('#cart-empty');
 const cart = new Map();
+const HOSTING_PRICE = 1490;
 const isPagesPreview = location.hostname.endsWith('github.io');
 
 if (isPagesPreview) document.querySelector('#preview-notice')?.classList.add('visible');
@@ -57,7 +58,19 @@ results.addEventListener('click', event => {
 function renderCart() {
   cartEmpty.hidden = cart.size > 0;
   cartItems.innerHTML = [...cart].map(([domain, price]) => `<div class="cart-item"><span>${domain} · ${price} Kč/rok</span><button type="button" data-remove="${domain}" aria-label="Odebrat ${domain}">Odebrat</button></div>`).join('');
+  renderTotal();
 }
+
+function money(value) { return new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: 'CZK', minimumFractionDigits: 2 }).format(value); }
+function renderTotal() {
+  const subtotal = [...cart.values()].reduce((sum, price) => sum + price, 0) + (document.querySelector('#hosting').checked ? HOSTING_PRICE : 0);
+  document.querySelector('#subtotal').textContent = money(subtotal);
+  document.querySelector('#vat').textContent = money(subtotal * .21);
+  document.querySelector('#grand-total').textContent = money(subtotal * 1.21);
+}
+
+document.querySelector('#hosting').addEventListener('change', renderTotal);
+renderTotal();
 
 cartItems.addEventListener('click', event => { if (event.target.dataset.remove) { cart.delete(event.target.dataset.remove); renderCart(); } });
 document.querySelector('#order-form').addEventListener('submit', async event => {
@@ -71,7 +84,7 @@ document.querySelector('#order-form').addEventListener('submit', async event => 
   }
   status.textContent = 'Připravuji objednávku…';
   try {
-    const response = await fetch('/api/order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ domains: [...cart.keys()], customer: { email: data.get('email'), name: data.get('name') } }) });
+    const response = await fetch('/api/order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ domains: [...cart.keys()], hosting: document.querySelector('#hosting').checked, customer: { email: data.get('email'), name: data.get('name') } }) });
     const body = await response.json();
     status.textContent = `${body.message} Číslo: ${body.reference || '—'}`;
   } catch { status.textContent = 'Objednávku se nepodařilo odeslat. Napište nám na info@praut.cz.'; }
