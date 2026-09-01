@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Najděte a zaregistrujte svou doménu jednoduše s PRAUT.">
+  <title>PRAUT Domény — najděte jméno pro svůj projekt</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="nav">
+    <a class="logo" href="https://praut.cz" aria-label="PRAUT"><img src="assets/praut.svg" alt="PRAUT"></a>
+    <nav aria-label="Hlavní navigace">
+      <a href="#jak-to-funguje">Jak to funguje</a>
+      <a href="#cenik">Ceník</a>
+      <a href="#podpora">Kontakt</a>
+    </nav>
+    <a class="account" href="#objednavka">Objednat doménu <span>→</span></a>
+  </header>
+
+  <main>
+    <div class="preview-notice" id="preview-notice">Veřejný náhled vzhledu · ostré ověřování a objednávky poběží na domeny.praut.cz</div>
+    <section class="hero">
+      <div class="eyebrow"><span></span> Doména je začátek něčeho velkého</div>
+      <h1>Najděte jméno,<br>které si lidé <em>zapamatují.</em></h1>
+      <p class="lead">Ověřte dostupnost během pár vteřin. Registraci, DNS i podporu vyřešíme za vás — lidsky a bez technických starostí.</p>
+      <form class="search" id="search-form">
+        <label class="sr-only" for="domain-input">Název domény</label>
+        <span class="search-icon">⌕</span>
+        <input id="domain-input" name="domain" autocomplete="off" placeholder="například vasefirma.cz" required>
+        <button type="submit">Ověřit doménu <span>→</span></button>
+      </form>
+      <div class="popular">Nejoblíbenější: <button data-domain="mojefirma.cz">.cz</button><button data-domain="mojefirma.com">.com</button><button data-domain="mojefirma.eu">.eu</button><button data-domain="mojefirma.sk">.sk</button></div>
+      <div id="results" class="results" aria-live="polite"></div>
+    </section>
+
+    <section class="trust-strip" aria-label="Výhody služby">
+      <div><span>✓</span><p><strong>Rychlé ověření</strong><small>Výsledek během vteřin</small></p></div>
+      <div><span>⌁</span><p><strong>Bezpečná správa</strong><small>DNSSEC a česká podpora</small></p></div>
+      <div><span>♡</span><p><strong>Férové ceny</strong><small>Žádné skryté poplatky</small></p></div>
+    </section>
+
+    <section id="jak-to-funguje" class="steps section">
+      <div class="section-copy"><span class="kicker">JEDNODUŠE OD ZAČÁTKU</span><h2>Vaše doména ve třech krocích.</h2><p>Od nápadu k vlastní internetové adrese bez zbytečných formulářů a složitostí.</p></div>
+      <ol>
+        <li><span>01</span><div class="step-icon">⌕</div><h3>Vyhledejte</h3><p>Zadejte vysněný název. Ověříme ho napříč nejčastějšími koncovkami.</p></li>
+        <li><span>02</span><div class="step-icon">＋</div><h3>Vyberte</h3><p>Přidejte volné domény do košíku a zvolte dobu registrace.</p></li>
+        <li><span>03</span><div class="step-icon">✓</div><h3>Začněte</h3><p>Po zaplacení doménu zaregistrujeme na vaše údaje a nastavíme DNS.</p></li>
+      </ol>
+    </section>
+
+    <section id="cenik" class="pricing section">
+      <span class="kicker">ORIENTAČNÍ CENÍK</span><h2>Oblíbené koncovky</h2>
+      <div class="price-grid">
+        <article><strong>.cz</strong><p>Česká jednička</p><b>249 Kč<small>/ rok bez DPH</small></b></article>
+        <article><strong>.com</strong><p>Pro světové ambice</p><b>349 Kč<small>/ rok bez DPH</small></b></article>
+        <article><strong>.eu</strong><p>Evropská důvěryhodnost</p><b>249 Kč<small>/ rok bez DPH</small></b></article>
+        <article><strong>.online</strong><p>Moderní a výstižná</p><b>699 Kč<small>/ rok bez DPH</small></b></article>
+      </div>
+      <p class="price-note">Ceny jsou pro prototyp orientační. Ostrý ceník se načte přímo z API zvoleného registrátora.</p>
+    </section>
+
+    <section id="objednavka" class="checkout section">
+      <div><span class="kicker">OBJEDNÁVKA</span><h2>Připravený košík</h2><p id="cart-empty">Nejdříve vyhledejte a vyberte volnou doménu.</p><div id="cart-items"></div></div>
+      <form id="order-form">
+        <label>E-mail pro potvrzení<input name="email" type="email" placeholder="vy@firma.cz" required></label>
+        <label>Jméno nebo firma<input name="name" placeholder="Vaše firma s.r.o."></label>
+        <label class="consent"><input name="consent" type="checkbox" required> Souhlasím s pravidly registrace a zpracováním údajů pro objednávku.</label>
+        <button class="primary" type="submit">Koupit domény →</button>
+        <p id="order-status" aria-live="polite"></p>
+      </form>
+    </section>
+  </main>
+
+  <footer id="podpora"><a class="logo" href="https://praut.cz"><img src="assets/praut.svg" alt="PRAUT"></a><p>Domény s lidskou podporou.<br><a href="mailto:objednavky@praut.cz">objednavky@praut.cz</a></p><small>© 2026 PRAUT s.r.o.</small></footer>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "praut-domeny",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Vyhledávání a nákup domén pro domeny.praut.cz",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
