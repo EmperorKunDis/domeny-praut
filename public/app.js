@@ -5,6 +5,7 @@ const results = document.querySelector('#results');
 const cartItems = document.querySelector('#cart-items');
 const cartEmpty = document.querySelector('#cart-empty');
 const cart = new Map();
+const hostingDomains = new Set();
 const HOSTING_PRICE = 1500;
 
 function normalize(value) {
@@ -49,22 +50,22 @@ results.addEventListener('click', event => {
 
 function renderCart() {
   cartEmpty.hidden = cart.size > 0;
-  cartItems.innerHTML = [...cart].map(([domain, price]) => `<div class="cart-item"><span>${domain} · ${price} Kč/rok</span><button type="button" data-remove="${domain}" aria-label="Odebrat ${domain}">Odebrat</button></div>`).join('');
+  cartItems.innerHTML = [...cart].map(([domain, price]) => `<article class="cart-item"><div class="cart-domain"><div><strong>${domain}</strong><small>Registrace na 1 rok</small></div><b>${price} Kč</b><button type="button" data-remove="${domain}" aria-label="Odebrat ${domain}">Odebrat</button></div><label class="domain-hosting"><input type="checkbox" data-hosting="${domain}" ${hostingDomains.has(domain) ? 'checked' : ''}><span><strong>Přidat hosting na 1 rok</strong><small>SSL, nasazení, monitoring a česká podpora</small></span><b>+ ${HOSTING_PRICE.toLocaleString('cs-CZ')} Kč</b></label></article>`).join('');
   renderTotal();
 }
 
 function money(value) { return new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: 'CZK', minimumFractionDigits: 2 }).format(value); }
 function renderTotal() {
-  const subtotal = [...cart.values()].reduce((sum, price) => sum + price, 0) + (document.querySelector('#hosting').checked ? HOSTING_PRICE * cart.size : 0);
+  const subtotal = [...cart.values()].reduce((sum, price) => sum + price, 0) + HOSTING_PRICE * hostingDomains.size;
   document.querySelector('#subtotal').textContent = money(subtotal);
   document.querySelector('#vat').textContent = money(subtotal * .21);
   document.querySelector('#grand-total').textContent = money(subtotal * 1.21);
 }
 
-document.querySelector('#hosting').addEventListener('change', renderTotal);
 renderTotal();
 
-cartItems.addEventListener('click', event => { if (event.target.dataset.remove) { cart.delete(event.target.dataset.remove); renderCart(); } });
+cartItems.addEventListener('click', event => { if (event.target.dataset.remove) { const domain = event.target.dataset.remove; cart.delete(domain); hostingDomains.delete(domain); renderCart(); } });
+cartItems.addEventListener('change', event => { if (event.target.dataset.hosting) { event.target.checked ? hostingDomains.add(event.target.dataset.hosting) : hostingDomains.delete(event.target.dataset.hosting); renderTotal(); } });
 document.querySelector('#order-form').addEventListener('submit', async event => {
   event.preventDefault();
   const status = document.querySelector('#order-status');
@@ -72,7 +73,7 @@ document.querySelector('#order-form').addEventListener('submit', async event => 
   const data = new FormData(event.target);
   status.textContent = 'Připravuji objednávku…';
   try {
-    const response = await fetch('/api/order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ domains: [...cart.keys()], hosting: document.querySelector('#hosting').checked, customer: { email: data.get('email'), name: data.get('name') } }) });
+    const response = await fetch('/api/order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ domains: [...cart.keys()], hostingDomains: [...hostingDomains], customer: { email: data.get('email'), name: data.get('name') } }) });
     const body = await response.json();
     status.textContent = `${body.message} Číslo: ${body.reference || '—'}`;
   } catch { status.textContent = 'Objednávku se nepodařilo odeslat. Napište nám na info@praut.cz.'; }

@@ -9,5 +9,8 @@ test('rejects malformed domain names', () => {
   assert.equal(validDomain('bez-koncovky'), false);
 });
 test('charges hosting separately for every domain and adds VAT', () => {
-  assert.deepEqual(calculateTotals(['firma.cz', 'firma.com'], true), { subtotal: 3648, vat: 766.08, total: 4414.08, currency: 'CZK' });
+  assert.deepEqual(calculateTotals(['firma.cz', 'firma.com'], ['firma.cz', 'firma.com']), { subtotal: 3648, vat: 766.08, total: 4414.08, currency: 'CZK' });
+});
+test('allows hosting for only one selected domain', () => {
+  assert.deepEqual(calculateTotals(['firma.cz', 'firma.com'], ['firma.com']), { subtotal: 2148, vat: 451.08, total: 2599.08, currency: 'CZK' });
 });

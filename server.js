@@ -10,8 +10,9 @@ const ALLOWED_TLDS = new Set(['cz', 'com', 'eu', 'sk', 'net', 'org', 'io', 'ai',
 const PRICES = { cz: 299, com: 349, eu: 249, sk: 299, net: 399, org: 399, io: 1299, ai: 2199, online: 699, shop: 899 };
 const HOSTING_PRICE = 1500;
 
-function calculateTotals(domains, hosting) {
-  const subtotal = domains.reduce((sum, domain) => sum + (PRICES[domain.split('.').pop()] || 0), 0) + (hosting ? HOSTING_PRICE * domains.length : 0);
+function calculateTotals(domains, hostingDomains = []) {
+  const hosted = new Set(hostingDomains.filter(domain => domains.includes(domain)));
+  const subtotal = domains.reduce((sum, domain) => sum + (PRICES[domain.split('.').pop()] || 0), 0) + HOSTING_PRICE * hosted.size;
   const vat = Math.round(subtotal * 21) / 100;
   return { subtotal, vat, total: subtotal + vat, currency: 'CZK' };
 }
@@ -55,7 +56,7 @@ async function notifyOwner(order) {
     `Domény: ${order.domains.join(', ')}`,
     `Jméno / firma: ${order.customer.name || 'neuvedeno'}`,
     `E-mail: ${order.customer.email}`,
-    `Hosting: ${order.hosting ? 'ano' : 'ne'}`,
+    `Hosting: ${order.hostingDomains.length ? order.hostingDomains.join(', ') : 'ne'}`,
     `Celkem: ${order.totals.total.toFixed(2)} Kč s DPH`,
     `Reference: ${order.reference}`,
     `Čas: ${order.createdAt}`
@@ -100,7 +101,7 @@ async function notifyOwner(order) {
         fields: [
           { name: 'Zákazník', value: order.customer.name || 'Neuvedeno', inline: true },
           { name: 'E-mail', value: order.customer.email, inline: true },
-          { name: 'Položky', value: `${order.domains.map(name => `• ${name} — ${PRICES[name.split('.').pop()] || '?'} Kč`).join('\n')}${order.hosting ? `\n• Spravovaný hosting ${order.domains.length}× — ${HOSTING_PRICE * order.domains.length} Kč` : ''}`, inline: false },
+          { name: 'Položky', value: order.domains.map(name => `• ${name} — ${PRICES[name.split('.').pop()] || '?'} Kč${order.hostingDomains.includes(name) ? `\n  ↳ hosting na 1 rok — ${HOSTING_PRICE} Kč` : ''}`).join('\n'), inline: false },
           { name: 'Celkem', value: `**${order.totals.subtotal.toFixed(2).replace('.', ',')} Kč bez DPH**\n${order.totals.total.toFixed(2).replace('.', ',')} Kč s DPH`, inline: true },
           { name: 'Reference', value: `\`${order.reference}\``, inline: true },
           { name: 'Rychlé odkazy', value: `[Ověřit v registru](${registryUrl}) · [Koupit u VEDOS](https://vedos.cz/domeny/)`, inline: false },
@@ -150,11 +151,12 @@ async function handler(req, res) {
       createdAt: new Date().toISOString(),
       domains: order.domains.map(normalizeDomain).filter(validDomain),
       customer: { email: String(order.customer.email).trim(), name: String(order.customer.name || '').trim() },
-      hosting: order.hosting === true,
+      hostingDomains: Array.isArray(order.hostingDomains) ? order.hostingDomains.map(normalizeDomain).filter(validDomain) : [],
       status: 'new'
     };
     if (!savedOrder.domains.length) return sendJson(res, 400, { error: 'Objednávka neobsahuje platnou doménu.' });
-    savedOrder.totals = calculateTotals(savedOrder.domains, savedOrder.hosting);
+    savedOrder.hostingDomains = [...new Set(savedOrder.hostingDomains.filter(domain => savedOrder.domains.includes(domain)))];
+    savedOrder.totals = calculateTotals(savedOrder.domains, savedOrder.hostingDomains);
     fs.mkdirSync(DATA_DIR, { recursive: true });
     fs.appendFileSync(ORDERS_FILE, JSON.stringify(savedOrder) + '\n', { mode: 0o600 });
 
