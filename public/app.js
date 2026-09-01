@@ -6,9 +6,6 @@ const cartItems = document.querySelector('#cart-items');
 const cartEmpty = document.querySelector('#cart-empty');
 const cart = new Map();
 const HOSTING_PRICE = 1500;
-const isPagesPreview = location.hostname.endsWith('github.io');
-
-if (isPagesPreview) document.querySelector('#preview-notice')?.classList.add('visible');
 
 function normalize(value) {
   return value.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
@@ -23,11 +20,6 @@ function resultHtml(data) {
 
 async function search(domain) {
   results.innerHTML = '<div class="loader">Ověřuji dostupnost…</div>';
-  if (isPagesPreview) {
-    await new Promise(resolve => setTimeout(resolve, 450));
-    results.innerHTML = resultHtml({ domain, status: 'available' });
-    return;
-  }
   try {
     const response = await fetch(`/api/availability?domain=${encodeURIComponent(domain)}`);
     const data = await response.json();
@@ -78,10 +70,6 @@ document.querySelector('#order-form').addEventListener('submit', async event => 
   const status = document.querySelector('#order-status');
   if (!cart.size) { status.textContent = 'Nejdříve přidejte alespoň jednu volnou doménu.'; return; }
   const data = new FormData(event.target);
-  if (isPagesPreview) {
-    status.textContent = 'Toto je náhled vzhledu. Ostrá objednávka bude fungovat na domeny.praut.cz.';
-    return;
-  }
   status.textContent = 'Připravuji objednávku…';
   try {
     const response = await fetch('/api/order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ domains: [...cart.keys()], hosting: document.querySelector('#hosting').checked, customer: { email: data.get('email'), name: data.get('name') } }) });

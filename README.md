@@ -1,6 +1,6 @@
 # PRAUT Domény
 
-Prototyp klientského vyhledávání a objednávání domén pro `domeny.praut.cz`. Používá veřejné RDAP CZ.NIC pro `.cz` a RDAP bootstrap pro podporované zahraniční TLD. Skutečná registrace je záměrně vypnutá, dokud nebude připojen účet registrátora a platební brána.
+Klientské vyhledávání a objednávání domén pro `domeny.praut.cz`.
 
 ## Spuštění
 
