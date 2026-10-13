@@ -1,6 +1,8 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
+const { customerEmail, createInvoicePdf } = require('./order-documents');
 
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -9,12 +11,47 @@ const ORDERS_FILE = path.join(DATA_DIR, 'orders.jsonl');
 const ALLOWED_TLDS = new Set(['cz', 'com', 'eu', 'sk', 'net', 'org', 'io', 'ai', 'online', 'shop']);
 const PRICES = { cz: 299, com: 349, eu: 249, sk: 299, net: 399, org: 399, io: 1299, ai: 2199, online: 699, shop: 899 };
 const HOSTING_PRICE = 1500;
+const PAYMENT_DUE_DAYS = Math.min(60, Math.max(1, Number.parseInt(process.env.PAYMENT_DUE_DAYS || '14', 10) || 14));
 
 function calculateTotals(domains, hostingDomains = []) {
   const hosted = new Set(hostingDomains.filter(domain => domains.includes(domain)));
   const subtotal = domains.reduce((sum, domain) => sum + (PRICES[domain.split('.').pop()] || 0), 0) + HOSTING_PRICE * hosted.size;
-  const vat = Math.round(subtotal * 21) / 100;
-  return { subtotal, vat, total: subtotal + vat, currency: 'CZK' };
+  return { subtotal, total: subtotal, currency: 'CZK' };
+}
+
+function clean(value, max = 120) {
+  return typeof value === 'string' ? value.trim().slice(0, max) : '';
+}
+
+function validateOrder(input) {
+  if (!input || typeof input !== 'object' || !Array.isArray(input.domains) || input.domains.length < 1 || input.domains.length > 20 || !input.customer || typeof input.customer !== 'object') {
+    throw new Error('Doplňte domény a fakturační údaje.');
+  }
+  if (input.domains.some(value => typeof value !== 'string')) throw new Error('Neplatná doména.');
+  const domains = [...new Set(input.domains.map(normalizeDomain))];
+  if (domains.some(domain => !validDomain(domain) || !ALLOWED_TLDS.has(domain.split('.').pop()))) throw new Error('Objednávka obsahuje neplatnou nebo nepodporovanou doménu.');
+  const rawHosting = Array.isArray(input.hostingDomains) ? input.hostingDomains : [];
+  if (rawHosting.length > 20 || rawHosting.some(value => typeof value !== 'string')) throw new Error('Neplatný výběr hostingu.');
+  const hostingDomains = [...new Set(rawHosting.map(normalizeDomain))];
+  if (hostingDomains.some(domain => !domains.includes(domain))) throw new Error('Hosting musí patřit k objednané doméně.');
+  const customer = {
+    email: clean(input.customer.email, 254), name: clean(input.customer.name), street: clean(input.customer.street),
+    city: clean(input.customer.city), postalCode: clean(input.customer.postalCode, 16),
+    country: clean(input.customer.country || 'Česká republika', 80), companyId: clean(input.customer.companyId, 24)
+  };
+  if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(customer.email) || !customer.name || !customer.street || !customer.city || !/^[\p{L}\d][\p{L}\d\s-]{2,15}$/u.test(customer.postalCode) || !customer.country) {
+    throw new Error('Doplňte platný e-mail a úplnou fakturační adresu.');
+  }
+  if (Object.values(customer).some(value => /[\r\n\u0000-\u001f]/.test(value))) throw new Error('Fakturační údaje obsahují nepovolené znaky.');
+  const now = new Date();
+  const due = new Date(now.getTime() + PAYMENT_DUE_DAYS * 86400000);
+  return {
+    reference: `PRAUT-${now.toISOString().slice(0, 10).replaceAll('-', '')}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`,
+    variableSymbol: String(crypto.randomInt(1_000_000_000, 10_000_000_000)),
+    createdAt: now.toISOString(), dueAt: due.toISOString(), domains, customer, hostingDomains,
+    prices: PRICES, hostingPrice: HOSTING_PRICE, status: 'awaiting_payment',
+    totals: calculateTotals(domains, hostingDomains)
+  };
 }
 
 function sendJson(res, status, body) {
@@ -57,13 +94,16 @@ async function notifyOwner(order) {
     `Jméno / firma: ${order.customer.name || 'neuvedeno'}`,
     `E-mail: ${order.customer.email}`,
     `Hosting: ${order.hostingDomains.length ? order.hostingDomains.join(', ') : 'ne'}`,
-    `Celkem: ${order.totals.total.toFixed(2)} Kč s DPH`,
+    `Celkem: ${order.totals.total.toFixed(2)} Kč (nejsme plátci DPH)`,
     `Reference: ${order.reference}`,
     `Čas: ${order.createdAt}`
   ].join('\n');
   const deliveries = [];
 
   if (process.env.RESEND_API_KEY) {
+    let invoice;
+    try { invoice = await createInvoicePdf(order); }
+    catch (error) { console.error(`[${order.reference}] PDF selhalo:`, error.message); }
     try {
       const response = await fetch('https://api.resend.com/emails', {
         method: 'POST',
@@ -73,13 +113,32 @@ async function notifyOwner(order) {
           to: [process.env.NOTIFY_EMAIL || 'objednavky@praut.cz'],
           reply_to: order.customer.email,
           subject,
-          text
+          text,
+          ...(invoice ? { attachments: [{ filename: `zaloha-${order.reference}.pdf`, content: invoice.toString('base64'), content_type: 'application/pdf' }] } : {})
         }),
         signal: AbortSignal.timeout(8000)
       });
       if (!response.ok) throw new Error(`E-mailová služba odpověděla ${response.status}: ${await response.text()}`);
       deliveries.push('email');
     } catch (error) { console.error(`[${order.reference}] E-mail selhal:`, error.message); }
+
+    try {
+      if (!invoice) throw new Error('PDF není dostupné');
+      const message = customerEmail(order);
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: process.env.NOTIFY_FROM || 'PRAUT Domény <domeny@praut.cz>',
+          to: [order.customer.email], reply_to: process.env.NOTIFY_EMAIL || 'objednavky@praut.cz',
+          subject: message.subject, html: message.html, text: message.text,
+          attachments: [{ filename: `zaloha-${order.reference}.pdf`, content: invoice.toString('base64'), content_type: 'application/pdf' }]
+        }),
+        signal: AbortSignal.timeout(12000)
+      });
+      if (!response.ok) throw new Error(`E-mailová služba odpověděla ${response.status}: ${await response.text()}`);
+      deliveries.push('customer-email');
+    } catch (error) { console.error(`[${order.reference}] Potvrzení zákazníkovi selhalo:`, error.message); }
   }
 
   if (process.env.ORDER_WEBHOOK_URL) {
@@ -102,7 +161,7 @@ async function notifyOwner(order) {
           { name: 'Zákazník', value: order.customer.name || 'Neuvedeno', inline: true },
           { name: 'E-mail', value: order.customer.email, inline: true },
           { name: 'Položky', value: order.domains.map(name => `• ${name} — ${PRICES[name.split('.').pop()] || '?'} Kč${order.hostingDomains.includes(name) ? `\n  ↳ hosting na 1 rok — ${HOSTING_PRICE} Kč` : ''}`).join('\n'), inline: false },
-          { name: 'Celkem', value: `**${order.totals.subtotal.toFixed(2).replace('.', ',')} Kč bez DPH**\n${order.totals.total.toFixed(2).replace('.', ',')} Kč s DPH`, inline: true },
+          { name: 'Celkem', value: `**${order.totals.total.toFixed(2).replace('.', ',')} Kč**\nNejsme plátci DPH`, inline: true },
           { name: 'Reference', value: `\`${order.reference}\``, inline: true },
           { name: 'Rychlé odkazy', value: `[Ověřit v registru](${registryUrl}) · [Koupit u VEDOS](https://vedos.cz/domeny/)`, inline: false },
           { name: 'Doporučený postup', value: '1. Ověřit dostupnost\n2. Kontaktovat klienta\n3. Nakoupit až po potvrzení/platbě\n4. Zapsat doménu na údaje klienta', inline: false }
@@ -143,20 +202,9 @@ async function handler(req, res) {
     if (body.length > 30_000) return sendJson(res, 413, { error: 'Objednávka je příliš velká.' });
     let order;
     try { order = JSON.parse(body); } catch { return sendJson(res, 400, { error: 'Neplatná objednávka.' }); }
-    if (!Array.isArray(order.domains) || !order.domains.length || !order.customer?.email) {
-      return sendJson(res, 400, { error: 'Doplňte doménu a kontaktní e-mail.' });
-    }
-    const savedOrder = {
-      reference: `PRAUT-${Date.now().toString(36).toUpperCase()}`,
-      createdAt: new Date().toISOString(),
-      domains: order.domains.map(normalizeDomain).filter(validDomain),
-      customer: { email: String(order.customer.email).trim(), name: String(order.customer.name || '').trim() },
-      hostingDomains: Array.isArray(order.hostingDomains) ? order.hostingDomains.map(normalizeDomain).filter(validDomain) : [],
-      status: 'new'
-    };
-    if (!savedOrder.domains.length) return sendJson(res, 400, { error: 'Objednávka neobsahuje platnou doménu.' });
-    savedOrder.hostingDomains = [...new Set(savedOrder.hostingDomains.filter(domain => savedOrder.domains.includes(domain)))];
-    savedOrder.totals = calculateTotals(savedOrder.domains, savedOrder.hostingDomains);
+    let savedOrder;
+    try { savedOrder = validateOrder(order); }
+    catch (error) { return sendJson(res, 400, { error: error.message }); }
     fs.mkdirSync(DATA_DIR, { recursive: true });
     fs.appendFileSync(ORDERS_FILE, JSON.stringify(savedOrder) + '\n', { mode: 0o600 });
 
@@ -167,7 +215,9 @@ async function handler(req, res) {
       reference: savedOrder.reference,
       totals: savedOrder.totals,
       notified: deliveries,
-      message: 'Děkujeme. Objednávku jsme přijali a ozveme se vám s dalším postupem.'
+      message: deliveries.includes('customer-email')
+        ? 'Objednávku jsme přijali. Výzvu k platbě jsme odeslali na váš e-mail.'
+        : 'Objednávku jsme přijali. Výzvu k platbě zatím nelze odeslat; ozveme se vám s dalším postupem.'
     });
   }
 
@@ -184,4 +234,4 @@ async function handler(req, res) {
 const server = http.createServer(handler);
 
 if (require.main === module) server.listen(PORT, () => console.log(`PRAUT Domény: http://localhost:${PORT}`));
-module.exports = { normalizeDomain, validDomain, calculateTotals, checkDomain, notifyOwner, handler, server };
+module.exports = { normalizeDomain, validDomain, calculateTotals, validateOrder, checkDomain, notifyOwner, handler, server };

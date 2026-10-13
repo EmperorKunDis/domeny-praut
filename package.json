@@ -5,9 +5,13 @@
   "description": "Vyhledávání a nákup domén pro domeny.praut.cz",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "preview": "node scripts/generate-preview.js"
   },
   "engines": {
-    "node": ">=20"
+    "node": "24.x"
+  },
+  "dependencies": {
+    "pdfkit": "^0.20.2"
   }
 }

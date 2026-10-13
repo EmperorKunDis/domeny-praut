@@ -16,7 +16,7 @@ function resultHtml(data) {
   const tld = data.domain.split('.').pop();
   const price = prices[tld];
   const state = data.status === 'available' ? ['available', 'Je volná', 'Přidat'] : data.status === 'taken' ? ['taken', 'Je již obsazená', 'Obsazeno'] : ['', 'Dostupnost se nepodařilo ověřit', 'Zkusit znovu'];
-  return `<div class="result ${state[0]}"><span class="dot"></span><div><strong>${data.domain}</strong><small>${state[1]}</small></div>${price ? `<div class="price"><strong>${price} Kč</strong><small>ročně bez DPH</small></div>` : ''}<button type="button" ${data.status !== 'available' ? 'disabled' : ''} data-add="${data.domain}">${state[2]}</button></div>`;
+  return `<div class="result ${state[0]}"><span class="dot"></span><div><strong>${data.domain}</strong><small>${state[1]}</small></div>${price ? `<div class="price"><strong>${price} Kč</strong><small>ročně</small></div>` : ''}<button type="button" ${data.status !== 'available' ? 'disabled' : ''} data-add="${data.domain}">${state[2]}</button></div>`;
 }
 
 async function search(domain) {
@@ -57,9 +57,7 @@ function renderCart() {
 function money(value) { return new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: 'CZK', minimumFractionDigits: 2 }).format(value); }
 function renderTotal() {
   const subtotal = [...cart.values()].reduce((sum, price) => sum + price, 0) + HOSTING_PRICE * hostingDomains.size;
-  document.querySelector('#subtotal').textContent = money(subtotal);
-  document.querySelector('#vat').textContent = money(subtotal * .21);
-  document.querySelector('#grand-total').textContent = money(subtotal * 1.21);
+  document.querySelector('#grand-total').textContent = money(subtotal);
 }
 
 renderTotal();
@@ -73,8 +71,9 @@ document.querySelector('#order-form').addEventListener('submit', async event => 
   const data = new FormData(event.target);
   status.textContent = 'Připravuji objednávku…';
   try {
-    const response = await fetch('/api/order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ domains: [...cart.keys()], hostingDomains: [...hostingDomains], customer: { email: data.get('email'), name: data.get('name') } }) });
+    const response = await fetch('/api/order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ domains: [...cart.keys()], hostingDomains: [...hostingDomains], customer: Object.fromEntries(['email', 'name', 'street', 'city', 'postalCode', 'country', 'companyId'].map(key => [key, data.get(key)])) }) });
     const body = await response.json();
+    if (!response.ok) throw new Error(body.error || 'Objednávku se nepodařilo odeslat.');
     status.textContent = `${body.message} Číslo: ${body.reference || '—'}`;
-  } catch { status.textContent = 'Objednávku se nepodařilo odeslat. Napište nám na info@praut.cz.'; }
+  } catch (error) { status.textContent = `${error.message || 'Objednávku se nepodařilo odeslat.'} Napište nám na objednavky@praut.cz.`; }
 });
