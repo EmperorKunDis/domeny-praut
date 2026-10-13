@@ -190,6 +190,23 @@ function contentType(file) {
 
 async function handler(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  if (url.pathname === '/api/invoice-preview' && req.method === 'GET') {
+    const sample = validateOrder({
+      domains: ['ukazkova-domena.cz'], hostingDomains: ['ukazkova-domena.cz'],
+      customer: { email: 'ukazka@example.test', name: 'Jana Nováková', street: 'Ukázková 12', city: 'Brno', postalCode: '602 00', country: 'Česká republika' }
+    });
+    sample.reference = 'PRAUT-UKAZKA-001';
+    sample.variableSymbol = '1234567890';
+    sample.sample = true;
+    try {
+      const pdf = await createInvoicePdf(sample);
+      res.writeHead(200, { 'Content-Type': 'application/pdf', 'Content-Disposition': 'inline; filename="praut-ukazka.pdf"', 'Cache-Control': 'no-store' });
+      return res.end(pdf);
+    } catch (error) {
+      console.error('Ukázka PDF selhala:', error.message);
+      return sendJson(res, 500, { error: 'Ukázku PDF nyní nelze připravit.' });
+    }
+  }
   if (url.pathname === '/api/availability' && req.method === 'GET') {
     const domain = normalizeDomain(url.searchParams.get('domain'));
     if (!validDomain(domain)) return sendJson(res, 400, { error: 'Zadejte platnou doménu, například moje-firma.cz.' });

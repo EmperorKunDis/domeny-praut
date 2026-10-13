@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizeDomain, validDomain, calculateTotals, validateOrder, notifyOwner } = require('../server');
+const { normalizeDomain, validDomain, calculateTotals, validateOrder, notifyOwner, server } = require('../server');
 const { customerEmail, createInvoicePdf } = require('../order-documents');
 
 const input = () => ({
@@ -69,4 +69,25 @@ test('Resend receives customer email with PDF attachment', async () => {
     if (priorKey === undefined) delete process.env.RESEND_API_KEY; else process.env.RESEND_API_KEY = priorKey;
     if (priorWebhook === undefined) delete process.env.ORDER_WEBHOOK_URL; else process.env.ORDER_WEBHOOK_URL = priorWebhook;
   }
+});
+
+test('invoice preview renders without PDFKit bundled Helvetica or sending mail', async () => {
+  const Module = require('node:module');
+  const originalLoad = Module._load;
+  Module._load = function(request, ...args) {
+    if (request.startsWith('#standard-fonts/')) throw new Error('standard fonts unavailable');
+    return originalLoad.call(this, request, ...args);
+  };
+  try {
+    const order = validateOrder(input());
+    const pdf = await createInvoicePdf({ ...order, sample: true });
+    assert.equal(pdf.subarray(0, 5).toString(), '%PDF-');
+  } finally { Module._load = originalLoad; }
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/api/invoice-preview`);
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('content-type'), /application\/pdf/);
+    assert.equal(Buffer.from(await response.arrayBuffer()).subarray(0, 5).toString(), '%PDF-');
+  } finally { await new Promise(resolve => server.close(resolve)); }
 });

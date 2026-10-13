@@ -35,7 +35,7 @@ function customerEmail(order) {
 
 function createInvoicePdf(order) {
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', margins: { top: 42, bottom: 50, left: 48, right: 48 }, info: { Title: `Zálohová faktura ${order.reference}`, Author: SUPPLIER.name } });
+    const doc = new PDFDocument({ size: 'A4', font: FONT_REGULAR, margins: { top: 42, bottom: 50, left: 48, right: 48 }, info: { Title: `Zálohová faktura ${order.reference}`, Author: SUPPLIER.name } });
     const chunks = [];
     doc.on('data', chunk => chunks.push(chunk));
     doc.on('end', () => resolve(Buffer.concat(chunks)));
